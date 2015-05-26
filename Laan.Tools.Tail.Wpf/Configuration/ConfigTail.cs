@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
-    public class ConfigTail
+    public class Configuration
     {
-        public ConfigTail()
+        public Configuration()
         {
             Length = 1000;
             Width = 80;

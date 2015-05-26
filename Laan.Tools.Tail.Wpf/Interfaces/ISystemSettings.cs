@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public interface ISystemSettings
     {

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Laan.Tools.Tail.Win.Extenders
+namespace Laan.Tools.Tail.Extenders
 {
     /// <summary>
     /// This class contains a few useful extenders for the ListBox

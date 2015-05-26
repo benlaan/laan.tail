@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using MahApps.Metro;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class ConfigApplication
     {

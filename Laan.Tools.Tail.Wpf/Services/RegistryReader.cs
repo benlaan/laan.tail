@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 using Microsoft.Win32;
 
-namespace Laan.Tools.Tail.Win.Services
+namespace Laan.Tools.Tail.Services
 {
     public class RegistryReader
     {

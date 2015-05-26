@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Threading.Tasks;
+using System.Reactive.Linq;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,27 +21,46 @@ using MahApps.Metro;
 
 using Microsoft.Win32;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
+    public class BufferedObservableCollection<T> : ObservableCollection<T>
+    {
+        public void AddRange(IEnumerable<T> range)
+        {
+            foreach (var item in range)
+            {
+                Items.Add(item);
+            }
+
+            OnPropertyChanged(new PropertyChangedEventArgs("Count"));
+            OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        }
+
+        public void Reset(IEnumerable<T> range)
+        {
+            Items.Clear();
+            AddRange(range);
+        }
+    }
+
     [Export(typeof(IShell))]
-    public class ShellViewModel : PropertyChangedBase, IShell
+    public class ShellViewModel : PropertyChangedBase, IShell, IDisposable
     {
         private readonly FileSystemWatcher _configWatcher;
 
-        private Timer _timer;
-        private string _status;
-        private TailService _currentService;
-        private TabFileItem _selectedFile;
-
-        private WindowState _windowState;
-        private int _currentRow;
-        private string _findText;
-        private bool _findShow;
         private bool _canFindNextItem;
+        private int _currentRow;
+        private TailService _currentService;
+        private bool _findShow;
+        private string _findText;
+        private TabFileItem _selectedFile;
+        private string _status;
+        private WindowState _windowState;
 
         public ShellViewModel()
         {
-            Buffer = new ObservableCollection<BufferItem>();
+            Buffer = new BufferedObservableCollection<BufferItem>();
             TabFileItems = new ObservableCollection<TabFileItem>();
             FileNames = new ObservableCollection<string>();
             FileNames.CollectionChanged += FileNamesCollectionChanged;
@@ -52,6 +73,13 @@ namespace Laan.Tools.Tail.Win
         ~ShellViewModel()
         {
             _configWatcher.Changed -= ConfigChanged;
+        }
+
+        private void ConfigChanged(object sender, FileSystemEventArgs e)
+        {
+            UserSettings = Win.UserSettings.Load();
+            UserSettings.Shell = this;
+            Execute.OnUIThread(ApplyConfiguration);
         }
 
         private void FileNamesCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -78,11 +106,23 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        private void ConfigChanged(object sender, FileSystemEventArgs e)
+        //public bool CanReload
+        //{
+        //    get { return _selectedFile != null; }
+        //}
+
+        private async Task<IList<BufferItem>> GetBuffer()
         {
-            UserSettings = Win.UserSettings.Load();
-            UserSettings.Shell = this;
-            Execute.OnUIThread(ApplyConfig);
+            var buffer = await _currentService.Buffer();
+                
+            return buffer
+                .Select(b => new BufferItem(UserSettings) { Line = b })
+                .ToList();
+        }
+
+        private T GetComponent<T>(string name) where T : class
+        {
+            return Application.Current.MainWindow.FindName(name) as T;
         }
 
         private TabFileItem LoadFile(string fileName)
@@ -97,42 +137,10 @@ namespace Laan.Tools.Tail.Win
             return item;
         }
 
-        private T GetComponent<T>(string name) where T : class
+        private void MoveTab(int delta)
         {
-            return Application.Current.MainWindow.FindName(name) as T;
-        }
-
-        private ListBox BufferListBox
-        {
-            get { return GetComponent<ListBox>("Buffer"); }
-        }
-
-        private void SetFont()
-        {
-            var lb = BufferListBox;
-            lb.FontFamily = new FontFamily(UserSettings.Appearance.FontFamily);
-            lb.FontSize = UserSettings.Appearance.FontSize;
-        }
-
-        private void InitialiseTimer()
-        {
-            if (_timer != null)
-                return;
-
-            _timer = new Timer(UserSettings.Tail.BufferDelay);
-            _timer.Elapsed += delegate
-            {
-                _timer.Enabled = false;
-                try
-                {
-                    Execute.OnUIThread(Reset);
-                }
-                finally
-                {
-                    _timer.Enabled = true;
-                }
-            };
-            _timer.Enabled = true;
+            var index = (TabFileItems.IndexOf(SelectedTab) + delta) % TabFileItems.Count;
+            SelectedTab = TabFileItems[index];
         }
 
         private void Reset()
@@ -144,6 +152,19 @@ namespace Laan.Tools.Tail.Win
                 if (tabFileItem.ChangeCount > 0 && tabFileItem == SelectedTab)
                     Reload(false);
             }
+        }
+
+        private BufferItem SearchNext(int startRow)
+        {
+            var next = Buffer
+                .Skip(startRow)
+                .SkipWhile(b => !b.HasHighlighter)
+                .FirstOrDefault();
+
+            if (next != null)
+                CurrentRow = Buffer.IndexOf(next);
+
+            return next;
         }
 
         private void SearchText(string findText)
@@ -172,27 +193,29 @@ namespace Laan.Tools.Tail.Win
             SearchNext(CurrentRow);
         }
 
-        private BufferItem SearchNext(int startRow)
+        private void SetFont()
         {
-            var next = Buffer
-                .Skip(startRow)
-                .SkipWhile(b => !b.HasHighlighter)
-                .FirstOrDefault();
-
-            if (next != null)
-                CurrentRow = Buffer.IndexOf(next);
-
-            return next;
+            var lb = BufferListBox;
+            lb.FontFamily = new FontFamily(UserSettings.Appearance.FontFamily);
+            lb.FontSize = UserSettings.Appearance.FontSize;
         }
 
         private void TailChanged(TailChangedEventArgs e)
         {
             var tab = TabFileItems.FirstOrDefault(item => item.FileName == e.FileName);
             if (tab != null)
+            {
                 tab.ApplyChange();
+                Reset();
+            }
         }
 
-        public void ApplyConfig()
+        private ListBox BufferListBox
+        {
+            get { return GetComponent<ListBox>("Buffer"); }
+        }
+
+        public void ApplyConfiguration()
         {
             try
             {
@@ -200,11 +223,11 @@ namespace Laan.Tools.Tail.Win
 
                 Accent accent = ThemeManager.DefaultAccents.First(a => a.Name == UserSettings.Appearance.AccentColor);
                 ThemeManager.ChangeTheme(Application.Current.MainWindow, accent, UserSettings.Appearance.Theme);
-                TabFileItems.Apply(tab => tab.TailService.ApplyConfig(UserSettings));
+                TabFileItems.Apply(tab => tab.TailService.ApplyConfiguration(UserSettings));
 
                 SetFont();
                 Reload(force: true);
-                Buffer.Apply(b => b.ApplyConfig(UserSettings));
+                Buffer.Apply(b => b.ApplyConfiguration(UserSettings));
                 
                 if (SelectedTab != null)
                     SelectedTab.CurrentRow = currentRow;
@@ -217,45 +240,9 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        public void Open()
+        public void BringLastTabToFront()
         {
-            OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Multiselect = true;
-            dialog.Filter = "Log Files (*.log)|*.log|Any File (*.*)|*.*";
-
-            if (dialog.ShowDialog() != true)
-                return;
-
-            dialog.FileNames.Apply(FileNames.Add);
-            SelectedTab = TabFileItems.Last();
-        }
-
-        public void Reload()
-        {
-            Reload(true);
-        }
-
-        //public bool CanReload
-        //{
-        //    get { return _selectedFile != null; }
-        //}
-
-        public void Reload(bool force)
-        {
-            if (SelectedTab == null)
-                return;
-
-            if (!force && !SelectedTab.FollowTail && Buffer.Count != 0 && SelectedTab.CurrentRow != Buffer.Count - 1)
-                return;
-
-            Buffer.Clear();
-            var items = _currentService.Buffer
-                .Select(buffer => new BufferItem(UserSettings) { Line = buffer });
-
-            foreach (var item in items)
-                Buffer.Add(item);
-
-            CurrentRow = Buffer.Count - 1;
+            ActiveTabIndex = FileNames.IndexOf(FileNames.Last());
         }
 
         //public bool CanClear()
@@ -315,16 +302,6 @@ namespace Laan.Tools.Tail.Win
             SelectedTab = TabFileItems.Any() ? TabFileItems[Math.Min(index, TabFileItems.Count - 1)] : null;
         }
 
-        public void CloseOthers(TabFileItem tabItem)
-        {
-            using (new CursorManager())
-            {
-                TabFileItems
-                    .Where(tab => tab != tabItem)
-                    .Apply(tab => Close(tab));
-            }
-        }
-
         public void CloseAll()
         {
             using (new CursorManager())
@@ -332,6 +309,16 @@ namespace Laan.Tools.Tail.Win
                 TabFileItems.Clear();
                 SelectedTab = null;
                 Buffer.Clear();
+            }
+        }
+
+        public void CloseOthers(TabFileItem tabItem)
+        {
+            using (new CursorManager())
+            {
+                TabFileItems
+                    .Where(tab => tab != tabItem)
+                    .Apply(tab => Close(tab));
             }
         }
 
@@ -360,11 +347,6 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        public void SelectAll()
-        {
-            Buffer.Apply(b => b.IsSelected = true);
-        }
-
         public void Find()
         {
             FindShow = true;
@@ -388,14 +370,89 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        public bool CanFindNextItem
+        public void Follow()
         {
-            get { return _canFindNextItem; }
-            set
+            if (SelectedTab == null)
+                return;
+
+            SelectedTab.FollowTail = !SelectedTab.FollowTail;
+        }
+
+        public void NextTab()
+        {
+            MoveTab(1);
+        }
+
+        public void OnFileDrag(DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effects = DragDropEffects.All;
+            else
+                e.Effects = DragDropEffects.None;
+        }
+
+        public void OnFileDrop(DragEventArgs e)
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop, false);
+            files.Apply(FileNames.Add);
+            SelectedTab = TabFileItems.Last();
+        }
+
+        public void Open()
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Multiselect = true;
+            dialog.Filter = "Log Files (*.log)|*.log|Any File (*.*)|*.*";
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            dialog.FileNames.Apply(FileNames.Add);
+            SelectedTab = TabFileItems.Last();
+        }
+
+        public void PreviousTab()
+        {
+            MoveTab(-1);
+        }
+
+        public void Quit()
+        {
+            Application.Current.MainWindow.Close();
+        }
+
+        public void Reload()
+        {
+            Reload(true);
+        }
+
+        public async void Reload(bool force)
+        {
+            if (SelectedTab == null)
+                return;
+
+            if (!force && !SelectedTab.FollowTail && Buffer.Any() && SelectedTab.CurrentRow != Buffer.Count - 1)
+                return;
+
+            var items = await GetBuffer();
+
+            Buffer.Reset(items);
+            CurrentRow = Buffer.Count - 1;
+        }
+
+        public void SelectAll()
+        {
+            Buffer.Apply(b => b.IsSelected = true);
+        }
+
+        public void Settings()
+        {
+            Process.Start(new ProcessStartInfo()
             {
-                _canFindNextItem = value;
-                NotifyOfPropertyChange(() => CanFindNextItem);
-            }
+                FileName = Win.UserSettings.ConfigFile,
+                UseShellExecute = true,
+                Verb = "Edit"
+            });
         }
 
         //public void OnMouseWheel(MouseWheelEventArgs e)
@@ -417,63 +474,80 @@ namespace Laan.Tools.Tail.Win
                 Close(tabItem);
         }
 
-        public void OnFileDrag(DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-                e.Effects = DragDropEffects.All;
-            else
-                e.Effects = DragDropEffects.None;
-        }
-
-        public void OnFileDrop(DragEventArgs e)
-        {
-            var files = (string[])e.Data.GetData(DataFormats.FileDrop, false);
-            files.Apply(FileNames.Add);
-            SelectedTab = TabFileItems.Last();
-        }
-
-        public void Settings()
-        {
-            Process.Start(new ProcessStartInfo()
-            {
-                FileName = Win.UserSettings.ConfigFile,
-                UseShellExecute = true,
-                Verb = "Edit"
-            });
-        }
-
-        public void Quit()
-        {
-            Application.Current.MainWindow.Close();
-        }
-
-        private void MoveTab(int delta)
-        {
-            var index = (TabFileItems.IndexOf(SelectedTab) + delta) % TabFileItems.Count;
-            SelectedTab = TabFileItems[index];
-        }
-
-        public void NextTab()
-        {
-            MoveTab(1);
-        }
-
-        public void PreviousTab()
-        {
-            MoveTab(-1);
-        }
-
         public void WordWrap()
         {
             UserSettings.WordWrap = !UserSettings.WordWrap;
         }
 
-        public void Follow()
+        public int ActiveTabIndex
         {
-            if (SelectedTab == null)
-                return;
+            get { return SelectedTab != null ? TabFileItems.IndexOf(SelectedTab) : -1; }
+            set
+            {
+                if (value >= 0 && value < TabFileItems.Count)
+                    SelectedTab = TabFileItems[value];
+            }
+        }
 
-            SelectedTab.FollowTail = !SelectedTab.FollowTail;
+        public BufferedObservableCollection<BufferItem> Buffer { get; set; }
+
+        public bool CanFindNextItem
+        {
+            get { return _canFindNextItem; }
+            set
+            {
+                _canFindNextItem = value;
+                NotifyOfPropertyChange(() => CanFindNextItem);
+            }
+        }
+
+        public int CurrentRow
+        {
+            get { return _currentRow; }
+            set
+            {
+                _currentRow = value;
+                if (SelectedTab != null)
+                    SelectedTab.CurrentRow = value;
+
+                NotifyOfPropertyChange(() => CurrentRow);
+                BufferListBox.ScrollIntoView(BufferListBox.SelectedItem);
+            }
+        }
+ 
+        public ObservableCollection<string> FileNames { get; set; }
+
+        public int FindHeight { get { return FindShow ? 20 : 0; } }
+
+        public bool FindShow
+        {
+            get { return _findShow; }
+            set
+            {
+                _findShow = value;
+                if (!_findShow)
+                    FindText = "";
+                else 
+                    GetComponent<TextBox>("FindText").Focus();
+
+                NotifyOfPropertyChange(() => FindShow);
+                NotifyOfPropertyChange(() => FindHeight);
+            }
+        }
+
+        public string FindText
+        {
+            get { return _findText; }
+            set
+            {
+                _findText = value;
+                NotifyOfPropertyChange(() => FindText);
+                
+                if (FindText != "")
+                    SearchText(FindText);
+                else 
+                    Buffer.Apply(b => b.ApplyConfiguration(UserSettings));
+            }
         }
 
         public TabFileItem SelectedTab
@@ -502,64 +576,7 @@ namespace Laan.Tools.Tail.Win
                     Reload();
                     TabFileItems.Apply(tab => tab.NotifyOfPropertyChange("FollowTailShow"));
                 }
-                InitialiseTimer();
-            }
-        }
-
-        public string Status
-        {
-            get { return _status; }
-            set
-            {
-                _status = value;
-                NotifyOfPropertyChange(() => Status);
-            }
-        }
-
-        public int CurrentRow
-        {
-            get { return _currentRow; }
-            set
-            {
-                _currentRow = value;
-                if (SelectedTab != null)
-                    SelectedTab.CurrentRow = value;
-
-                NotifyOfPropertyChange(() => CurrentRow);
-                BufferListBox.ScrollIntoView(BufferListBox.SelectedItem);
-            }
-        }
-
-        public int FindHeight { get { return FindShow ? 20 : 0; } }
-
-        public string FindText
-        {
-            get { return _findText; }
-            set
-            {
-                _findText = value;
-                NotifyOfPropertyChange(() => FindText);
-                
-                if (FindText != "")
-                    SearchText(FindText);
-                else 
-                    Buffer.Apply(b => b.ApplyConfig(UserSettings));
-            }
-        }
-
-        public bool FindShow
-        {
-            get { return _findShow; }
-            set
-            {
-                _findShow = value;
-                if (!_findShow)
-                    FindText = "";
-                else 
-                    GetComponent<TextBox>("FindText").Focus();
-
-                NotifyOfPropertyChange(() => FindShow);
-                NotifyOfPropertyChange(() => FindHeight);
+                Reset();
             }
         }
 
@@ -579,29 +596,43 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        public int ActiveTabIndex
+        public string Status
         {
-            get { return SelectedTab != null ? TabFileItems.IndexOf(SelectedTab) : -1; }
+            get { return _status; }
             set
             {
-                if (value >= 0 && value < TabFileItems.Count)
-                    SelectedTab = TabFileItems[value];
+                _status = value;
+                NotifyOfPropertyChange(() => Status);
             }
         }
 
-        public void BringLastTabToFront()
-        {
-            ActiveTabIndex = FileNames.IndexOf(FileNames.Last());
-        }
- 
-        public ObservableCollection<string> FileNames { get; set; }
+        [Import(typeof(ISystemSettings))]
+        public ISystemSettings SystemSettings { get; set; }
         public ObservableCollection<TabFileItem> TabFileItems { get; set; }
-        public ObservableCollection<BufferItem> Buffer { get; set; }
 
         [Import(typeof(IUserSettings))]
         public IUserSettings UserSettings { get; set; }
 
-        [Import(typeof(ISystemSettings))]
-        public ISystemSettings SystemSettings { get; set; }
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    _currentService.Dispose();
+                    _configWatcher.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+        }
     }
 }

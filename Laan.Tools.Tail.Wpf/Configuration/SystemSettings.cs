@@ -5,7 +5,7 @@ using System.Windows;
 
 using Microsoft.Win32;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class SystemSettings : ISystemSettings
     {

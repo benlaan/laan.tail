@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Serialization;
 using System.Xml;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     [Serializable]
     public class Highlighter

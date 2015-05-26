@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public interface IUserSettings
     {
@@ -14,7 +14,7 @@ namespace Laan.Tools.Tail.Win
         void Save();
         
         List<Highlighter> Highlighters { get; set; }
-        ConfigTail Tail { get; set; }
+        Configuration Tail { get; set; }
         ConfigAppearance Appearance { get; set; }
         ConfigApplication Application { get; set; }
     }

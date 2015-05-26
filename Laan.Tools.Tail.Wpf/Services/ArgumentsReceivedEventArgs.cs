@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     /// <summary>
     /// Holds a list of arguments given to an application at startup.

@@ -7,9 +7,9 @@ using System.Windows;
 
 using Caliburn.Micro;
 using System.Timers;
-using Laan.Tools.Tail.Win.Services;
+using Laan.Tools.Tail.Services;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class TabFileItem : PropertyChangedBase
     {

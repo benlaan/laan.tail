@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows.Data;
 using System.Windows;
 
-namespace Laan.Tools.Tail.Win.Extenders
+namespace Laan.Tools.Tail.Extenders
 {
     public class VisibilityConverter : IValueConverter
     {

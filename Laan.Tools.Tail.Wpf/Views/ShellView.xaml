@@ -1,8 +1,8 @@
 ﻿<metro:MetroWindow
-    x:Class="Laan.Tools.Tail.Win.ShellView"
+    x:Class="Laan.Tools.Tail.ShellView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:laan="clr-namespace:Laan.Tools.Tail.Win.Extenders"
+    xmlns:laan="clr-namespace:Laan.Tools.Tail.Extenders"
     xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
     xmlns:metro="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
     xmlns:cal="http://www.caliburnproject.org"
@@ -199,11 +199,11 @@
                 </Button>
             </ToolBar>
             <TabControl 
-            DockPanel.Dock="Top" 
-            x:Name="Tabs" 
-            ItemsSource="{Binding TabFileItems}" 
-            SelectedItem="{Binding SelectedTab, Mode=TwoWay}" 
-            Grid.Row="1">
+                DockPanel.Dock="Top" 
+                x:Name="Tabs" 
+                ItemsSource="{Binding TabFileItems}" 
+                SelectedItem="{Binding SelectedTab, Mode=TwoWay}" 
+                Grid.Row="1">
                 <TabControl.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Vertical">
@@ -226,16 +226,16 @@
                             <StackPanel Orientation="Horizontal">
                                 <Canvas Width="100" Height="10">
                                     <Image 
-                                Source="{StaticResource followImage}" 
-                                Stretch="Fill"
-                                Visibility="{Binding FollowTailShow, Converter={StaticResource VisibilityConverter}}"
-                                Width="8" 
-                                Height="5"
-                            />
+                                        Source="{StaticResource followImage}" 
+                                        Stretch="Fill"
+                                        Visibility="{Binding FollowTailShow, Converter={StaticResource VisibilityConverter}}"
+                                        Width="8" 
+                                        Height="5"
+                                    />
                                     <Rectangle 
-                                Canvas.Left="10"
-                                Width="{Binding ChangeCount}" Height="3" 
-                                Fill="{Binding ChangeCount, Converter={StaticResource ColorConverter}}">
+                                        Canvas.Left="10"
+                                        Width="{Binding ChangeCount}" Height="3" 
+                                        Fill="{Binding ChangeCount, Converter={StaticResource ColorConverter}}">
                                     </Rectangle>
                                 </Canvas>
                             </StackPanel>
@@ -264,15 +264,15 @@
                         <MenuItem Header="Find Next (F3)" x:Name="FindNext" Visibility="Collapsed"/>
                         <Separator Visibility="Collapsed"/>
                         <MenuItem 
-                        Header="Word Wrap (Ctrl+W)" 
-                        IsChecked="{Binding Path=UserSettings.WordWrap, Mode=TwoWay}"
-                        IsCheckable="True"
-                    />
+                            Header="Word Wrap (Ctrl+W)" 
+                            IsChecked="{Binding Path=UserSettings.WordWrap, Mode=TwoWay}"
+                            IsCheckable="True"
+                        />
                         <MenuItem 
-                        Header="Follow Tail (Ctrl+L)" 
-                        IsChecked="{Binding Path=SelectedTab.FollowTail, Mode=TwoWay}"
-                        IsCheckable="True"
-                    />
+                            Header="Follow Tail (Ctrl+L)" 
+                            IsChecked="{Binding Path=SelectedTab.FollowTail, Mode=TwoWay}"
+                            IsCheckable="True"
+                        />
                     </ContextMenu>
                 </ListBox.ContextMenu>
 

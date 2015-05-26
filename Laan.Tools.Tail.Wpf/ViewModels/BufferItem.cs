@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Caliburn.Micro;
 using System.Windows.Media;
-using System.Text.RegularExpressions;
 using System.Windows;
 
-namespace Laan.Tools.Tail.Win
+using Caliburn.Micro;
+
+namespace Laan.Tools.Tail
 {
     public class BufferItem : PropertyChangedBase
     {
@@ -16,11 +16,11 @@ namespace Laan.Tools.Tail.Win
         private bool _hasHighlighter;
         private Brush _foregroundColor;
         private Brush _backgroundColor;
-        private IUserSettings _config;
+        private IUserSettings _userSettings;
         
-        public BufferItem(IUserSettings config)
+        public BufferItem(IUserSettings userSettings)
         {
-            ApplyConfig(config);
+            ApplyConfiguration(userSettings);
         }
 
         public string Line
@@ -29,32 +29,31 @@ namespace Laan.Tools.Tail.Win
             set
             {
                 _line = value;
-                ApplyConfig(_config);
+                ApplyConfiguration(_userSettings);
                 NotifyOfPropertyChange(() => Line);
             }
         }
 
         public TextWrapping TextWrapping
         {
-            get { return _config.TextWrapping; }
+            get { return _userSettings.TextWrapping; }
         }
 
-        public void ApplyConfig(IUserSettings config)
+        public void ApplyConfiguration(IUserSettings userSettings)
         {
-            _config = config;
+            _userSettings = userSettings;
             NotifyOfPropertyChange(() => TextWrapping);
             
             if (_line == null)
                 return;
 
-            Highlighter highlighter = _config.Highlighters.FirstOrDefault(h => h.Regex.IsMatch(_line));
+            Highlighter highlighter = _userSettings.Highlighters.FirstOrDefault(h => h.Regex.IsMatch(_line));
             HasHighlighter = highlighter != null;
             if (highlighter != null)
             {
                 ForegroundColor = new SolidColorBrush(highlighter.Foreground);
                 BackgroundColor = new SolidColorBrush(highlighter.Background);
             }
-                
         }
 
         public bool IsSelected
@@ -96,7 +95,5 @@ namespace Laan.Tools.Tail.Win
                 NotifyOfPropertyChange(() => HasHighlighter);
             }
         }
-
-
     }
 }

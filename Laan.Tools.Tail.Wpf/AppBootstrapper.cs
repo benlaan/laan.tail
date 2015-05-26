@@ -3,24 +3,57 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.ComponentModel.Composition.Hosting;
 using System.ComponentModel.Composition.Primitives;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Windows;
 
 using Caliburn.Micro;
 
 using MahApps.Metro;
-using System.Diagnostics;
-using System.Windows;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class AppBootstrapper : Bootstrapper<IShell>
     {
+
+        internal static CompositionContainer Container;
         private ISystemSettings _systemSettings;
         private IUserSettings _userSettings;
 
-        internal static CompositionContainer Container;
+        private void LogError(Exception exception)
+        {
+            const string eventSource = "LaanTail";
+
+            try
+            {
+                var elog = new EventLog();
+                if (!EventLog.SourceExists(eventSource))
+                    EventLog.CreateEventSource(eventSource, eventSource);
+
+                elog.Source = eventSource;
+                elog.EnableRaisingEvents = true;
+                elog.WriteEntry(exception.ToString(), EventLogEntryType.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(exception.ToString(), "Error: " + ex.Message);
+            }
+
+            MessageBox.Show(exception.ToString(), "Error: " + exception.Message);
+        }
+
+        private ISystemSettings SystemSettings
+        {
+            get
+            {
+                if (_systemSettings == null)
+                    _systemSettings = Win.SystemSettings.Load();
+
+                return _systemSettings;
+            }
+        }
 
         private IUserSettings UserSettings
         {
@@ -33,15 +66,9 @@ namespace Laan.Tools.Tail.Win
             }
         }
 
-        private ISystemSettings SystemSettings
+        protected override void BuildUp(object instance)
         {
-            get
-            {
-                if (_systemSettings == null)
-                    _systemSettings = Win.SystemSettings.Load();
-
-                return _systemSettings;
-            }
+            Container.SatisfyImportsOnce(instance);
         }
         
         /// <summary>
@@ -68,6 +95,11 @@ namespace Laan.Tools.Tail.Win
             //LogManager.GetLog = type => new DebugLogger(type);
         }
 
+        protected override IEnumerable<object> GetAllInstances(Type serviceType)
+        {
+            return Container.GetExportedValues<object>(AttributedModelServices.GetContractName(serviceType));
+        }
+
         protected override object GetInstance(Type serviceType, string key)
         {
             string contract = string.IsNullOrEmpty(key) ? AttributedModelServices.GetContractName(serviceType) : key;
@@ -78,37 +110,11 @@ namespace Laan.Tools.Tail.Win
 
             throw new Exception(string.Format("Could not locate any instances of contract {0}.", contract));
         }
-
-        protected override IEnumerable<object> GetAllInstances(Type serviceType)
+        
+        protected override void OnExit(object sender, EventArgs e)
         {
-            return Container.GetExportedValues<object>(AttributedModelServices.GetContractName(serviceType));
-        }
-
-        protected override void BuildUp(object instance)
-        {
-            Container.SatisfyImportsOnce(instance);
-        }
-
-        private void LogError(Exception exception)
-        {
-            const string eventSource = "LaanTail";
-
-            try
-            {
-                EventLog elog = new EventLog();
-                if (!EventLog.SourceExists(eventSource))
-                    EventLog.CreateEventSource(eventSource, eventSource);
-
-                elog.Source = eventSource;
-                elog.EnableRaisingEvents = true;
-                elog.WriteEntry(exception.ToString(), EventLogEntryType.Error);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                MessageBox.Show(exception.ToString(), "Error: " + ex.Message);
-            }
-
-            MessageBox.Show(exception.ToString(), "Error: " + exception.Message);
+            SystemSettings.Save();
+            base.OnExit(sender, e);
         }
 
         protected override void OnStartup(object sender, System.Windows.StartupEventArgs e)
@@ -120,7 +126,7 @@ namespace Laan.Tools.Tail.Win
             Environment.CurrentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
 
             Accent accent = ThemeManager.DefaultAccents.First(a => a.Name == UserSettings.Appearance.AccentColor);
-            ThemeManager.ChangeTheme(this.Application.MainWindow, accent, UserSettings.Appearance.Theme);
+            ThemeManager.ChangeTheme(Application.MainWindow, accent, UserSettings.Appearance.Theme);
 
             IShell shell = Container.GetExportedValue<IShell>();
             UserSettings.Shell = shell;
@@ -140,12 +146,6 @@ namespace Laan.Tools.Tail.Win
             {
                 shell.ActiveTabIndex = storedActiveIndex;
             }
-        }
-        
-        protected override void OnExit(object sender, EventArgs e)
-        {
-            SystemSettings.Save();
-            base.OnExit(sender, e);
         }
     }
 }

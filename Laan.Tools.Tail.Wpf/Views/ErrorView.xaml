@@ -1,4 +1,4 @@
-﻿<Window x:Class="Laan.Tools.Tail.Win.Views.ErrorView"
+﻿<Window x:Class="Laan.Tools.Tail.Views.ErrorView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Error" Height="300" Width="300">

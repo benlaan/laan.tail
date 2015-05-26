@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class CursorManager : IDisposable
     {

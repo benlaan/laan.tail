@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Laan.Tools.Tail.Win.Extenders
+namespace Laan.Tools.Tail.Extenders
 {
     [ValueConversion(typeof(Int32), typeof(Brush))]
     public class ColorConverter : IValueConverter

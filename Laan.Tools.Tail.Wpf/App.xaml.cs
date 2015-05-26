@@ -7,7 +7,7 @@ using System.Windows;
 
 using Microsoft.Shell;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     /// <summary>
     /// Interaction logic for App.xaml

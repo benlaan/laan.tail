@@ -5,7 +5,7 @@ using Caliburn.Micro;
 using System.Globalization;
 using System.Diagnostics;
 
-namespace Laan.Tools.Tail.Win
+namespace Laan.Tools.Tail
 {
     public class DebugLogger : ILog
     {

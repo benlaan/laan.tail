@@ -6,7 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interactivity;
 
-namespace Laan.Tools.Tail.Win.Extenders
+namespace Laan.Tools.Tail.Extenders
 {
 
     public class InputBindingTrigger : TriggerBase<FrameworkElement>, ICommand
